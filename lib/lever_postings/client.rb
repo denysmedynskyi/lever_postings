@@ -1,12 +1,10 @@
 module LeverPostings
   class Client
-    attr_accessor :account, :api, :connection
+    attr_reader :connection, :settings
 
-    def initialize(api, account)
-      @api = api
-      @account = account
-      @connection = Faraday.new url: "https://api.lever.co/v0/" do |conn|
-        # POST/PUT params encoders:
+    def initialize(settings:)
+      @settings = settings
+      @connection = Faraday.new url: settings.url do |conn|
         conn.request :multipart
         conn.request :url_encoded
         conn.adapter :net_http
@@ -14,25 +12,27 @@ module LeverPostings
     end
 
     def get(path, params = {})
-      request :get, path, {}, params
+      request :get, path, params
     end
 
-    def post(path, options = {}, params = {})
-      request :post, path, options, params
+    def post(path, params = {})
+      request :post, path, params
     end
 
-    def request(method, path, options = {}, params = {})
-      path = path && path != "" ? "/#{path}" : nil
-      url = "#{api}/#{account}#{path}"
-      url += "?key=#{options[:api_key]}" if options.key?(:api_key)
+    def head(path, params = {})
+      request :head, path, params
+    end
+
+    def request(method, path, params = {})
+      url = "#{settings.api}/#{settings.account}#{path}"
+      url += "?key=#{settings.api_key}" if settings.api_key
 
       if method == :post
-        response = connection.post(url, params)
-        response
+        connection.post(url, params)
       else
         connection.params = params
         response = connection.send(method, url)
-        if response.status == 200
+        if response.success?
           if params[:mode] == "json"
             MultiJson.load(response.body, symbolize_keys: true)
           else
